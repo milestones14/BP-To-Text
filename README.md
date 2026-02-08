@@ -1,2 +1,15 @@
-# BP-To-Text
-A lightweight, browser-based tool that converts messy Unreal Engine Blueprint "Copy-Paste" text (T3D) into clean, human-readable pseudocode. It recursively resolves data connections and follows execution flows (including Branches) to turn complex spaghetti nodes into a structured logic tree ready for AI or docs.
+# Unreal Blueprint Logic Parser
+
+A single-file HTML tool to convert Unreal Engine Blueprint text into a clean, readable logic tree.
+
+## 🚀 How to Use
+1. **In Unreal Engine**: Select the nodes you want to document and press `Ctrl + C`.
+2. **In the Parser**: Paste the text into the "Input" box.
+3. **Convert**: Click **"Generate Clean Logic Tree"**.
+4. **Copy**: Grab the formatted pseudocode for use in your project documentation or as a prompt for AI.
+
+## ✨ Key Features
+- **Recursive Data Resolution**: Automatically pulls values from "Pure" nodes (like Getters, Math, and Breaks) into the execution line.
+- **Branch Support**: Correcty maps `IF/THEN/ELSE` flow from IfThenElse nodes.
+- **T3D Hardened**: Specifically designed to handle Unreal's internal GUIDs and inconsistent link formatting.
+- **Privacy Focused**: No data is ever sent to a server; all parsing happens locally in your browser.
