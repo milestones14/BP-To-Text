@@ -4,7 +4,7 @@ A single-file HTML tool to convert Unreal Engine Blueprint text into a clean, re
 
 ## 🚀 How to Use
 1. **In Unreal Engine**: Select the nodes you want to document and press `Ctrl + C`.
-2. **In the Parser**: Paste the text into the "Input" box.
+2. **In the Parser**: Go to [the parser](https://milestones14.github.io/BP-To-Text/)
 3. **Convert**: Click **"Generate Clean Logic Tree"**.
 4. **Copy**: Grab the formatted pseudocode for use in your project documentation or as a prompt for AI.
 
