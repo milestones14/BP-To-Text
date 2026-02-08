@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BP Logic Tree v6.0</title>
+    <style>
+        body { background: #0b0e14; color: #cfd8dc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        .wrapper { max-width: 1200px; margin: auto; display: flex; flex-direction: column; gap: 20px; height: 90vh; }
+        .io-container { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        .box { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        textarea { flex: 1; background: #1c2331; color: #4fc3f7; border: 1px solid #37474f; padding: 15px; border-radius: 8px; resize: none; font-family: 'Consolas', monospace; font-size: 13px; outline: none; }
+        #output { background: #05070a; color: #eceff1; white-space: pre; overflow: auto; border-left: 5px solid #2979ff; }
+        button { background: #2979ff; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        button:hover { background: #448aff; }
+        h2 { margin: 0; font-size: 16px; color: #90a4ae; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="io-container">
+        <div class="box">
+            <h2>1. Paste Blueprint Text</h2>
+            <textarea id="input" placeholder="Paste your T3D nodes here..."></textarea>
+        </div>
+        <div class="box">
+            <h2>2. Copyable Pseudocode</h2>
+            <textarea id="output" readonly placeholder="Parsed logic tree..."></textarea>
+        </div>
+    </div>
+    <button onclick="parseLogic()">GENERATE CLEAN LOGIC TREE</button>
+</div>
+
+<script>
+function parseLogic() {
+    const raw = document.getElementById('input').value;
+    const nodes = extractNodes(raw);
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    // Identify entry points (Events)
+    let roots = nodes.filter(n => n.type === 'EVENT');
+    
+    // Fallback: If no event, find the first node with an execution output
+    if (roots.length === 0) {
+        const firstExec = nodes.find(n => n.pins.some(p => p.isExec && p.dir === 'output'));
+        if (firstExec) roots = [firstExec];
+    }
+
+    let result = "";
+    roots.forEach(root => {
+        result += walk(root, nodeMap, 0, new Set()) + "\n\n";
+    });
+
+    document.getElementById('output').value = result.trim() || "No valid logic found. Ensure you pasted 'Begin Object' blocks.";
+}
+
+function walk(node, map, depth, visited) {
+    if (!node || visited.has(node.id)) return "";
+    visited.add(node.id);
+
+    const indent = "  ".repeat(depth);
+    let line = `${indent}`;
+
+    // Node Type/Label
+    if (node.type === 'EVENT') line += `EVENT [${node.label}]`;
+    else if (node.type === 'BRANCH') line += `IF`;
+    else line += `> ${node.label}`;
+
+    // Inline Params (Data Pins)
+    const params = getParams(node, map);
+    if (params.length > 0) line += ` (${params.join(", ")})`;
+    
+    let text = line + "\n";
+
+    // Follow Flow
+    if (node.type === 'BRANCH') {
+        const trueNode = getNext(node, "then", map) || getNext(node, "true", map);
+        const falseNode = getNext(node, "else", map) || getNext(node, "false", map);
+
+        if (trueNode) text += `${indent}  True:\n` + walk(trueNode, map, depth + 2, new Set(visited));
+        if (falseNode) text += `${indent}  False:\n` + walk(falseNode, map, depth + 2, new Set(visited));
+    } else {
+        const nextNode = getNext(node, "then", map) || getNext(node, "execute", map);
+        if (nextNode) text += walk(nextNode, map, depth, visited);
+    }
+
+    return text;
+}
+
+function getParams(node, map) {
+    // Look at inputs for functions, outputs for events
+    const targetDir = (node.type === 'EVENT') ? 'output' : 'input';
+    
+    return node.pins
+        .filter(p => !p.isExec && p.dir === targetDir && p.name !== 'self' && p.name !== 'OutputDelegate')
+        .map(p => {
+            let val = p.def || "None";
+            if (p.link) {
+                const src = map.get(p.link);
+                if (src && src.isPure) {
+                    const inner = getParams(src, map);
+                    val = `[${src.label}${inner.length ? ' ' + inner.join(', ') : ''}]`;
+                } else {
+                    val = `[${src ? src.label : 'Linked Node'}]`;
+                }
+            }
+            return `${p.name}: ${val}`;
+        });
+}
+
+function getNext(node, pinName, map) {
+    const pin = node.pins.find(p => p.isExec && p.dir === 'output' && p.name.toLowerCase().includes(pinName.toLowerCase()));
+    return (pin && pin.link) ? map.get(pin.link) : null;
+}
+
+function extractNodes(text) {
+    const blocks = text.split(/Begin Object/gi).slice(1);
+    return blocks.map(block => {
+        const id = (block.match(/Name="([^"]+)"/)||[,""])[1];
+        const className = (block.match(/Class=([^\s"]+)/)||[,""])[1].split('.').pop();
+        
+        // Find best label
+        let label = id;
+        const refMatch = block.match(/(?:Event|Function|Variable)Reference=\(.*MemberName="([^"]+)"/);
+        if (refMatch) label = refMatch[1].replace(/^K2_/, "");
+        else if (className.includes("EnumEquality")) label = "Enum Compare";
+        else if (className.includes("IfThenElse")) label = "Branch";
+
+        const node = { id, label, type: 'NODE', pins: [], isPure: false };
+        if (className.includes("Event")) node.type = 'EVENT';
+        if (className.includes("IfThenElse")) node.type = 'BRANCH';
+
+        // Pin Parsing
+        const pinRegex = /CustomProperties Pin \((.*?)\)(?:\r?\n|$)/g;
+        let m;
+        while ((m = pinRegex.exec(block)) !== null) {
+            const pStr = m[1];
+            const pName = (pStr.match(/PinName="([^"]+)"/)||[,""])[1];
+            const pDir = pStr.includes('Direction="EGPD_Output"') ? 'output' : 'input';
+            const isExec = pStr.includes('PinCategory="exec"');
+            const def = (pStr.match(/DefaultValue="([^"]+)"/)||[,""])[1];
+            
+            // CLEAN LINK PARSING: Handles GUIDs and trailing commas inside parens
+            let link = null;
+            const linkMatch = pStr.match(/LinkedTo=\(([^ ]+)/);
+            if (linkMatch) link = linkMatch[1].replace(/[(),]/g, "");
+
+            node.pins.push({ name: pName, dir: pDir, isExec, def, link });
+        }
+
+        // Mark Pure (no execution input)
+        if (node.type !== 'EVENT' && !node.pins.some(p => p.isExec && p.dir === 'input')) {
+            node.isPure = true;
+        }
+
+        return node;
+    });
+}
+</script>
+</body>
+</html>
