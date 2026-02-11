@@ -6,8 +6,8 @@ I made this because I couldn't find any tools out there for free, mostly overpri
 ## 🚀 How to Use
 1. **In Unreal Engine**: Select the nodes you want to document and press `Ctrl + C`.
 2. **In the Parser**: Go to [the parser](https://milestones14.github.io/BP-To-Text/)
-3. **Convert**: Click **"Generate Clean Logic Tree"**.
-4. **Copy**: Grab the formatted pseudocode for use in your project documentation or for AI.
+3. **Convert** Copy your blueprint from Unreal, paste it into the text field on the left, then click **"Generate Clean Logic Tree"**.
+5. **Copy**: Grab the formatted pseudocode for use in your project documentation or for AI.
 
 ## ✨ Key Features
 - **Recursive Data Resolution**: Automatically pulls values from "Pure" nodes (like Getters, Math, and Breaks) into the execution line.
